@@ -1,50 +1,39 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import pandas as pd
 from datetime import datetime
-import numpy as np
+import energy_util as util
 
 app = Flask(__name__)
 app.secret_key = 'dein_sehr_geheimer_schlüssel'
-csv_file_path = 'data.csv'  # Pfad zur CSV-Datei
-csv_data_columns = ['strom', 'wasser', 'gas', 'dle', 'einspeisung', 'garten'] 
-df_renames_display = {
-    'dle': 'DLE',
-    'einspeisung': 'Einspeisung',
-    'gas': 'Gas',
-    'strom': 'Strom',
-    'wasser': 'Wasser',
-    'garten': 'Garten',
-    'datum': 'Datum'
-}
+
 
 @app.route('/', methods=['GET'])
 def home():
-    today = datetime.now().strftime('%Y-%m-%d')   # Heutiges Datum im deutschen Format
+    today = datetime.now().strftime('%Y-%m-%d')
     try:
-        df = get_data()
-        df['datum'] = pd.to_datetime(df['datum'], format='%Y-%m-%d').dt.strftime('%d.%m.%Y')  # Datum im deutschen Format anzeigen
-        df = df.iloc[::-1] # flip the table bottom to top
-        data_html = df.rename(columns=df_renames_display).to_html(classes='data-table', table_id="data_table", border=0, index=False)
-        
+        data = util.prepare_data_for_list_display()
     except pd.errors.EmptyDataError:
-        data_html = "<p>Keine Daten vorhanden.</p>"
+        data = pd.DataFrame().to_dict(orient='records')
+        flash("Keine Daten vorhanden.", "error")
     except Exception as e:
+        data = pd.DataFrame().to_dict(orient='records')
         flash(f"Fehler beim Laden der Daten: {str(e)}", "error")
-        data_html = "<p>Fehler beim Laden der Daten.</p>"
-    return render_template('home.html', today=today, table=data_html)
+    return render_template('home.html', today=today, data=data)
 
 @app.route('/submit', methods=['POST'])
 def submit():
     try:
-        datum = datetime.strptime(request.form['datum'], '%Y-%m-%d').strftime('%Y-%m-%d')  # Datum aus dem Formular im ISO-Format umwandeln
-        # check if datum is before 2000
-        if int(datum[:4]) < 2000 or int(datum[:4]) > 2100:
-            raise ValueError
-    except ValueError:
-        flash('Fehler beim Eintragen der Daten: Ungültiges Datum', 'error')
+        datum = request.form['datum']
+        formatted_date = util.format_date_for_storage(datum)  # Convert to storage format
+        # Check date validity
+        if not (2000 <= int(formatted_date[:4]) <= 2100):
+            raise ValueError("Invalid year.")
+    except ValueError as e:
+        flash(f'Fehler beim Eintragen der Daten: {str(e)}', 'error')
         return redirect(url_for('home'))
+    
     new_data = {
-        'datum': datum,  # Das Datum wird direkt als String genutzt
+        'datum': formatted_date,
         'strom': request.form['strom'],
         'wasser': request.form['wasser'],
         'gas': request.form['gas'],
@@ -54,25 +43,28 @@ def submit():
     }
 
     try:
-        df = get_data()
-        if datum in df['datum'].values:
-            flash(f'Warnung: Ein Eintrag für dieses Datum existiert bereits. Er wird überschrieben. Alte Daten waren: id {str(df[df['datum'] == datum])}', 'warning')
-            df = df[df['datum'] != datum]  # Vorhandenen Eintrag entfernen
-        df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)  
-        save_data(df)
+        df = util.get_data()
+        if formatted_date in df['datum'].values:
+            flash('Warnung: Ein Eintrag für dieses Datum existiert bereits. Er wird überschrieben.', 'warning')
+            df = df[df['datum'] != formatted_date]  # Remove existing entry
+        df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
+        util.save_data(df)
         flash('Erfolgreich eingetragen', 'success')
     except Exception as e:
         flash(f"Fehler beim Laden der Daten: {str(e)}", "error")
     return redirect(url_for('home'))
 
-def save_data(df):
-    df.to_csv(csv_file_path, index=False, sep=';')
-
-def get_data():
-    df = pd.read_csv(csv_file_path, delimiter=';', decimal=',', index_col=False)
-    df[csv_data_columns] = df[csv_data_columns].apply(pd.to_numeric, errors='coerce')
-    df[csv_data_columns] = df[csv_data_columns].apply(np.floor).astype('Int64')
-    return df
+@app.route('/delete', methods=['POST'])
+def delete_entry():
+    date_to_delete = request.form['date_to_delete']
+    try:
+        df = util.get_data()
+        df = df[df['datum'] != util.format_date_for_storage(date_to_delete)]
+        util.save_data(df)
+        flash(f'Eintrag {str(date_to_delete)} erfolgreich gelöscht', 'success')
+    except Exception as e:
+        flash(f'Fehler beim Löschen des Datums: {str(e)}', 'error')
+    return redirect(url_for('home'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
