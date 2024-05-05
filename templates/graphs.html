@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block sub_nav %}
+<nav class="nav nav-tabs">
+    <a class="nav-item nav-link {% if active_sub_tab == 'all' %}active{% endif %}" href="{{ url_for('graphs', type='all') }}">All</a>
+    <a class="nav-item nav-link {% if active_sub_tab == 'strom' %}active{% endif %}" href="{{ url_for('graphs', type='strom') }}">Strom</a>
+    <a class="nav-item nav-link {% if active_sub_tab == 'wasser' %}active{% endif %}" href="{{ url_for('graphs', type='wasser') }}">Wasser</a>
+    <a class="nav-item nav-link {% if active_sub_tab == 'gas' %}active{% endif %}" href="{{ url_for('graphs', type='gas') }}">Gas</a>
+</nav>
+{% endblock %}
+
+{% block title %}Graphen - {{ type | capitalize }}{% endblock %}
+
+
+{% block content %}
+<h2>Energie-Dashboard: Graphen und Details</h2>
+<canvas id="energyChart" width="400" height="400"></canvas>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var ctx = document.getElementById('energyChart').getContext('2d');
+        var energyChart = new Chart(ctx, {
+            type: 'line', // Change this based on the type or design you need
+            data: {
+                labels: [], // Dates will be populated here
+                datasets: [{
+                    label: '{{ active_sub_tab | capitalize }} Verbrauch',
+                    data: [], // Data points will be populated here
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+        // Load your data here via AJAX or server-side scripting
+    });
+</script>
+{% endblock %}
