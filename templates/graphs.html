@@ -18,27 +18,55 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         var ctx = document.getElementById('energyChart').getContext('2d');
-        var energyChart = new Chart(ctx, {
-            type: 'line', // Change this based on the type or design you need
-            data: {
-                labels: [], // Dates will be populated here
-                datasets: [{
-                    label: '{{ active_sub_tab | capitalize }} Verbrauch',
-                    data: [], // Data points will be populated here
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                scales: {
-                    y: {
-                        beginAtZero: true
+        var energyChart = null;  // Declare chart variable to update or destroy it as needed
+    
+        function fetchDataAndUpdateChart(resourceType) {
+            fetch(`/api/data/${resourceType}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Check if data is in the expected format (array of objects)
+                    if (!Array.isArray(data) || data.length === 0 || !data[0].hasOwnProperty('label')) {
+                        console.error('Data format error or data is empty');
+                        return;
                     }
-                }
-            }
-        });
-        // Load your data here via AJAX or server-side scripting
+    
+                    var labels = data.map(item => item.label);
+                    var dataValues = data.map(item => item.value);
+    
+                    var chartData = {
+                        labels: labels,
+                        datasets: [{
+                            label: `${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)} Verbrauch`,
+                            data: dataValues,
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1
+                        }]
+                    };
+    
+                    if (energyChart) {
+                        energyChart.destroy();  // Destroy the existing chart before creating a new one
+                    }
+    
+                    energyChart = new Chart(ctx, {
+                        type: 'line',
+                        data: chartData,
+                        options: {
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        }
+    
+        // Fetch data based on the current active type, passed from Flask
+        fetchDataAndUpdateChart('{{ active_sub_tab }}');  
     });
-</script>
+    </script>
+    
+    
 {% endblock %}

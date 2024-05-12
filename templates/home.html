@@ -42,7 +42,7 @@
                     <td>{{ row['Wasser'] }}</td>
                     <td>{{ row['Garten'] }}</td>
                     <td>
-                        <form action="/delete" method="post" style="display:inline;">
+                        <form action="/delete" method="post" style="display:inline;" onsubmit="return confirmDelete();">
                             <input type="hidden" name="date_to_delete" value="{{ row['Datum'] }}">
                             <button type="submit" class="btn btn-danger btn-sm">Löschen</button>
                         </form>
@@ -55,6 +55,7 @@
     <div class="scroll-buttons">
         <button id="scrollUp" class="btn btn-primary scroll-button">Scroll nach oben</button>
         <button id="scrollDown" class="btn btn-primary scroll-button">Scroll nach unten</button>
+        <a href="{{ url_for('download_data') }}" class="btn btn-secondary">Daten herunterladen</a>
     </div>
 </div>
 <script>
@@ -72,6 +73,10 @@
     
         tableContainer.style.height = `${desiredHeight}px`; // Set the calculated height
     }
+
+    function confirmDelete() {
+        return confirm('Eintrag wirklich unwiderruflich löschen?');
+    }
 </script>
 
 <script>
@@ -83,6 +88,33 @@
 
     document.getElementById('scrollDown').addEventListener('click', function() {
         tableContainer.scrollTop = tableContainer.scrollHeight;
+    });
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.querySelector('form[action="/submit"]');
+        
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();  // Verhindert das Standardverhalten des Formulars
+            
+            const formData = new FormData(form);
+            const response = await fetch('/check_date', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.exists) {
+                const confirmOverwrite = confirm('Ein Eintrag für dieses Datum existiert bereits. Möchten Sie ihn überschreiben?');
+                if (!confirmOverwrite) {
+                    return;  // Bricht den Vorgang ab, wenn der Benutzer nicht überschreiben möchte
+                }
+            }
+            
+            // Wenn kein Eintrag existiert oder der Benutzer das Überschreiben bestätigt hat
+            form.submit();
+        });
     });
 </script>
 {% endblock %}

@@ -85,6 +85,24 @@ def calculate_averages(df, freq):
 	""" Calculate mean values for given frequency (D, W, M, Y) """
 	return df.resample(freq).mean()
 
+
+def get_data_for_type(type):
+    # Here, implement fetching data logic based on 'type'
+    # Example placeholder logic
+    df = get_data()  # Assuming util.get_data() fetches a DataFrame with all data
+    if type in df.columns:
+        return df[[type]].dropna().to_dict(orient='index')
+    return {}
+
+def prepare_all_data():
+    # Assuming you have a way to access data for each type
+    types = ['strom', 'wasser', 'gas', 'dle', 'einspeisung', 'garten']
+    all_data = {}
+    for type in types:
+        all_data[type] = get_data_for_type(type)  # You need to implement this function
+    return all_data
+
+
 def prepare_data_for_graphs(resource_type, timeframe):
 	df = get_data(get_data_file_path())
 	df = df[[resource_type]].interpolate()  # focusing on one resource type and interpolate missing
