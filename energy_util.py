@@ -128,3 +128,29 @@ def prepare_data_for_graphs(resource_type, timeframe):
 		return data, yearly_data.to_dict()
 
 	return data
+
+# Ergänzungen in energy_util.py
+
+def get_strom_data():
+    df = get_data()
+    df['datum'] = pd.to_datetime(df.index).normalize()  # Datum normalisieren, um die Uhrzeit zu entfernen
+    
+    # Interpolieren der Daten
+    df['strom'] = df['strom'].interpolate()
+    
+    # Akkumulierter Verlauf
+    accumulated = df['strom'].cumsum().reset_index()
+    accumulated['datum'] = accumulated['datum'].dt.strftime('%Y-%m-%d')  # Datum formatieren
+    
+    # Verbrauch in diesem Jahr (Differenz)
+    df_current_year = df[df['datum'].dt.year == datetime.now().year]
+    consumption_diff = df_current_year['strom'].diff().dropna().reset_index()
+    consumption_diff['datum'] = consumption_diff['datum'].dt.strftime('%Y-%m-%d')  # Datum formatieren
+    
+    # Durchschnitt über alle Jahre interpoliert
+    df['month'] = df['datum'].dt.month
+    monthly_avg = df.groupby('month')['strom'].mean().reset_index()
+    monthly_avg['current_year'] = df_current_year.groupby(df_current_year['datum'].dt.month)['strom'].sum().reset_index()['strom']
+    
+    return accumulated, consumption_diff, monthly_avg
+

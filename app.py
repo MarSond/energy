@@ -204,5 +204,22 @@ def download_data():
 		return redirect(url_for('home'))
 
 
+@app.route('/api/graph_data/strom', methods=['GET'])
+def api_graph_data_strom():
+    try:
+        accumulated, consumption_diff, monthly_avg = util.get_strom_data()
+        
+        response_data = {
+            'accumulated': accumulated.to_dict(orient='records'),
+            'consumption_diff': consumption_diff.to_dict(orient='records'),
+            'monthly_avg': monthly_avg.to_dict(orient='records'),
+        }
+        
+        return jsonify(response_data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
 if __name__ == '__main__':
 	app.run(host='0.0.0.0', port=5000)
