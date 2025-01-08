@@ -4,6 +4,10 @@ from datetime import datetime
 import numpy as np
 import os
 from constants import *
+from dataclasses import dataclass
+from datetime import datetime
+import yaml
+from typing import Dict, List
 
 csv_data_columns = [STROM, WASSER, GAS, DLE, EINSPEISUNG, GARTEN] 
 
@@ -16,6 +20,31 @@ df_renames_display = {
 	GARTEN: 'Garten',
 	DATUM: 'Datum'
 }
+
+@dataclass
+class MeterChange:
+	date: datetime
+	column: str  # strom/gas/etc
+	offset: int
+	reason: str = ""
+
+def load_meter_changes(file_path: str = 'meter_changes.yaml') -> Dict[str, List[MeterChange]]:
+	with open(file_path, 'r') as f:
+		data = yaml.safe_load(f)
+		
+	changes = {}
+	if data is None or len(data) == 0:
+		return changes
+	for col, entries in data.items():
+		changes[col] = [
+			MeterChange(
+				date=datetime.strptime(entry['date'], '%Y-%m-%d'),
+				column=col,
+				offset=entry['offset'],
+				reason=entry.get('reason', '')
+			) for entry in entries
+		]
+	return changes
 
 def format_date_for_display(date_input):
     """ Convert date from various formats to DD.MM.YYYY format for display purposes. """
@@ -49,6 +78,23 @@ def get_data_file_path():
     else:
         return PROD_FILENAME # production environment
 
+def apply_meter_changes(df: pd.DataFrame) -> pd.DataFrame:
+	"""Wendet die dokumentierten Zählerkorrekturen an."""
+	df_corrected = df.copy()
+	changes = load_meter_changes()
+	
+	for column, meter_changes in changes.items():
+		if column not in df.columns:
+			continue
+			
+		for change in sorted(meter_changes, key=lambda x: x.date):
+			# Addiere Offset zu allen Werten nach dem Änderungsdatum
+			mask = df_corrected.index >= change.date
+			df_corrected.loc[mask, column] += change.offset
+	
+	return df_corrected
+
+
 def get_data():
     """ Retrieve and format data from a CSV file. """
     csv_file_path = get_data_file_path()
@@ -57,6 +103,7 @@ def get_data():
     df.set_index('datum', inplace=True)
     df[csv_data_columns] = df[csv_data_columns].apply(pd.to_numeric, errors='coerce')
     df[csv_data_columns] = df[csv_data_columns].apply(np.floor).astype('Int64')
+    df = apply_meter_changes(df)
     return df
 
 def prepare_data_for_list_display():

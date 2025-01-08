@@ -1,0 +1,23 @@
+strom:
+  - date: "2024-07-24"
+    offset: 153097
+    reason: "Smart Meter Installation"
+
+gas:
+  - date: "2017-06-01"
+    offset: 10808
+    reason: "Gaszähler wechsel" 
+
+
+wasser:
+  - date: "2022-01-01"
+    offset: 893
+    reason: "Wasserzähler wechsel"
+
+  - date: "2016-08-01"
+    offset: 1130
+    reason: "Wasserzähler wechsel"
+  
+  - date: "2010-07-31"
+    offset: 246
+    reason: "Wasserzähler wechsel"
