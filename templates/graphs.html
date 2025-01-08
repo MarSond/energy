@@ -1,106 +1,77 @@
 {% extends 'base.html' %}
-
-{% block sub_nav %}
-<nav class="nav nav-tabs">
-    <a class="nav-item nav-link {% if active_sub_tab == 'all' %}active{% endif %}" href="{{ url_for('graphs', type='all') }}">All</a>
-    <a class="nav-item nav-link {% if active_sub_tab == 'strom' %}active{% endif %}" href="{{ url_for('graphs', type='strom') }}">Strom</a>
-    <a class="nav-item nav-link {% if active_sub_tab == 'wasser' %}active{% endif %}" href="{{ url_for('graphs', type='wasser') }}">Wasser</a>
-    <a class="nav-item nav-link {% if active_sub_tab == 'gas' %}active{% endif %}" href="{{ url_for('graphs', type='gas') }}">Gas</a>
-</nav>
-{% endblock %}
-
-{% block title %}Graphen - Strom{% endblock %}
-
+{% block title %}Graphen - Energie-Dashboard{% endblock %}
 {% block content %}
-<h2>Energie-Dashboard: Strom Graphen</h2>
 
-<div class="container">
-    <canvas id="accumulatedChart" width="400" height="200"></canvas>
-    <canvas id="consumptionDiffChart" width="400" height="200"></canvas>
-    <canvas id="monthlyAvgChart" width="400" height="200"></canvas>
+<div class="container-fluid">
+    <h2>Energie-Dashboard: Graphen</h2>
+
+    <ul class="nav nav-tabs" id="energyTabs" role="tablist">
+        {% for energy_type in energy_types %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if energy_type == active_energy_type %}active{% endif %}" 
+                    id="{{ energy_type }}-tab" 
+                    data-bs-toggle="tab" 
+                    data-bs-target="#{{ energy_type }}" 
+                    type="button" 
+                    role="tab" 
+                    aria-controls="{{ energy_type }}" 
+                    aria-selected="{% if energy_type == active_energy_type %}true{% else %}false{% endif %}">
+                {{ energy_type|capitalize }}
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <div class="tab-content" id="energyTabsContent">
+        {% for energy_type in energy_types %}
+        <div class="tab-pane fade {% if energy_type == active_energy_type %}show active{% endif %}" 
+             id="{{ energy_type }}" 
+             role="tabpanel" 
+             aria-labelledby="{{ energy_type }}-tab">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mt-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Jährlicher Verbrauch</h5>
+                            <canvas id="{{ energy_type }}-yearly-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card mt-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Monatlicher Verbrauch (Letzten 3 Jahre)</h5>
+                            <canvas id="{{ energy_type }}-monthly-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mt-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Durchschnittlicher Verbrauch pro Monat</h5>
+                            <canvas id="{{ energy_type }}-avg-monthly-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card mt-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Kumulativer Verbrauch</h5>
+                            <canvas id="{{ energy_type }}-cumulative-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    fetch('/api/graph_data/strom')
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                console.error('Error:', data.error);
-                return;
-            }
+{% endblock %}
 
-            // Akkumulierter Verlauf Chart
-            const accumulatedCtx = document.getElementById('accumulatedChart').getContext('2d');
-            new Chart(accumulatedCtx, {
-                type: 'line',
-                data: {
-                    labels: data.accumulated.map(item => item.datum),
-                    datasets: [{
-                        label: 'Akkumulierter Stromverbrauch',
-                        data: data.accumulated.map(item => item.strom),
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        fill: false
-                    }]
-                },
-                options: {
-                    scales: {
-                        y: { beginAtZero: true }
-                    }
-                }
-            });
-
-            // Verbrauch in diesem Jahr Chart
-            const consumptionDiffCtx = document.getElementById('consumptionDiffChart').getContext('2d');
-            new Chart(consumptionDiffCtx, {
-                type: 'line',
-                data: {
-                    labels: data.consumption_diff.map(item => item.datum),
-                    datasets: [{
-                        label: 'Verbrauch in diesem Jahr',
-                        data: data.consumption_diff.map(item => item.strom),
-                        borderColor: 'rgba(255, 99, 132, 1)',
-                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                        fill: false
-                    }]
-                },
-                options: {
-                    scales: {
-                        y: { beginAtZero: true }
-                    }
-                }
-            });
-
-            // Durchschnitt über alle Jahre Chart
-            const monthlyAvgCtx = document.getElementById('monthlyAvgChart').getContext('2d');
-            new Chart(monthlyAvgCtx, {
-                type: 'bar',
-                data: {
-                    labels: data.monthly_avg.map(item => item.month),
-                    datasets: [{
-                        label: 'Durchschnittlicher Verbrauch',
-                        data: data.monthly_avg.map(item => item.strom),
-                        backgroundColor: 'rgba(153, 102, 255, 0.2)',
-                        borderColor: 'rgba(153, 102, 255, 1)',
-                        borderWidth: 1
-                    },
-                    {
-                        label: 'Verbrauch dieses Jahr',
-                        data: data.monthly_avg.map(item => item.current_year),
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    scales: {
-                        y: { beginAtZero: true }
-                    }
-                }
-            });
-        })
-        .catch(error => console.error('Error fetching data:', error));
-});
-</script>
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/energy_charts.js') }}"></script>
 {% endblock %}
