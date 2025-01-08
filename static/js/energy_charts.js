@@ -1,239 +1,254 @@
-// energy_charts.js
+// Konfigurationsobjekt für verschiedene Energietypen
+const CONFIG = {
+    strom: {
+        color: 'rgba(75, 192, 192, 0.6)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        label: 'Stromverbrauch',
+        unit: 'kWh'
+    },
+    gas: {
+        color: 'rgba(255, 159, 64, 0.6)',
+        borderColor: 'rgba(255, 159, 64, 1)',
+        label: 'Gasverbrauch',
+        unit: 'm³'
+    },
+    wasser: {
+        color: 'rgba(54, 162, 235, 0.6)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        label: 'Wasserverbrauch',
+        unit: 'm³'
+    },
+    einspeisung: {
+        color: 'rgba(153, 102, 255, 0.6)',
+        borderColor: 'rgba(153, 102, 255, 1)',
+        label: 'Einspeisung',
+        unit: 'kWh'
+    },
+    dle: {
+        color: 'rgba(255, 99, 132, 0.6)',
+        borderColor: 'rgba(255, 99, 132, 1)',
+        label: 'DLE',
+        unit: 'Einheit'
+    },
+    garten: {
+        color: 'rgba(75, 192, 192, 0.6)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        label: 'Garten',
+        unit: 'm³'
+    }
+};
 
-let charts = {};
-let currentEnergyType = '';
-let globalData = {};
+// Cache für die Daten
+let dataCache = new Map();
+let charts = new Map();
 
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM fully loaded');
+// Event Listener für DOM Content Loaded
+document.addEventListener('DOMContentLoaded', () => {
     setupTabListeners();
     initializeCharts();
+
+    const triggerTabList = [].slice.call(document.querySelectorAll('#energyTabs button'));
+    triggerTabList.forEach(function (triggerEl) {
+        new bootstrap.Tab(triggerEl);
+    });
 });
 
 function setupTabListeners() {
-    const energyTabs = document.querySelectorAll('#energyTabs button');
-    console.log(`Found ${energyTabs.length} energy tabs`);
-    
-    energyTabs.forEach(tab => {
-        tab.addEventListener('click', function (event) {
-            console.log(`Tab clicked: ${event.target.id}`);
+    // Bootstrap Tab Events abfangen
+    document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(tabEl => {
+        tabEl.addEventListener('shown.bs.tab', event => {
+            // Dies wird ausgelöst NACHDEM der Tab gewechselt wurde
             const energyType = event.target.id.replace('-tab', '');
-            switchToEnergyType(energyType);
+            console.log('Bootstrap Tab switched to:', energyType);
+            switchEnergyType(energyType);
         });
     });
 }
 
-function switchToEnergyType(energyType) {
-    console.log(`Switching to energy type: ${energyType}`);
-    currentEnergyType = energyType;
-    if (globalData[energyType]) {
-        console.log(`Using cached data for ${energyType}`);
-        createAllCharts(energyType, globalData[energyType]);
-    } else {
-        console.log(`Fetching new data for ${energyType}`);
-        fetchDataAndCreateCharts(energyType);
-    }
-}
-
+// Initialisierung der Charts
 function initializeCharts() {
     const activeTab = document.querySelector('#energyTabs button.active');
     if (activeTab) {
-        console.log(`Initializing charts for active tab: ${activeTab.id}`);
-        const initialEnergyType = activeTab.id.replace('-tab', '');
-        switchToEnergyType(initialEnergyType);
-    } else {
-        console.error('No active tab found');
+        const initialType = activeTab.id.replace('-tab', '');
+        switchEnergyType(initialType);
     }
 }
 
-function fetchDataAndCreateCharts(energyType) {
-    console.log(`Fetching data for ${energyType}`);
-    fetch(`/api/data/${energyType}`)
-        .then(response => response.json())
-        .then(data => {
-            console.log(`Received data for ${energyType}:`, data);
-            globalData[energyType] = data;
-            createAllCharts(energyType, data);
-        })
-        .catch(error => console.error('Error fetching data:', error));
+// Wechsel zwischen Energietypen
+async function switchEnergyType(type) {
+    console.log('Switching to:', type);
+    try {
+        if (dataCache.has(type)) {
+            dataCache.delete(type);
+        }
+        const data = await getDataForType(type);
+        updateAllCharts(type, data);
+    } catch (error) {
+        console.error(`Fehler beim Laden der Daten für ${type}:`, error);
+        showError(`Fehler beim Laden der ${type}-Daten`);
+    }
 }
 
-function createAllCharts(energyType, data) {
-    console.log(`Creating all charts for ${energyType}`);
-    createYearlyChart(energyType, data);
-    createMonthlyChart(energyType, data);
-    createAvgMonthlyChart(energyType, data);
-    createCumulativeChart(energyType, data);
+// Daten abrufen (mit Caching)
+async function getDataForType(type) {
+    try {
+        const response = await fetch(`/api/data/${type}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        dataCache.set(type, data);
+        return data;
+    } catch (error) {
+        console.error(`Fehler beim Abrufen der Daten für ${type}:`, error);
+        return {
+            labels: [],
+            values: []
+        };
+    }
 }
 
-function createChart(chartId, config) {
-    console.log(`Creating/updating chart: ${chartId}`);
-    const ctx = document.getElementById(chartId);
-    if (!ctx) {
-        console.error(`Canvas element with id ${chartId} not found`);
+// Update aller Charts
+function updateAllCharts(type, data) {
+    console.log('Updating all charts for:', type);
+    const config = CONFIG[type];
+    if (!config) {
+        console.error(`Keine Konfiguration für Typ ${type} gefunden`);
         return;
     }
-    
-    if (charts[chartId]) {
-        console.log(`Destroying existing chart: ${chartId}`);
-        charts[chartId].destroy();
-    }
-    
-    console.log(`Creating new chart: ${chartId}`);
-    charts[chartId] = new Chart(ctx, config);
+
+    updateYearlyChart(type, data);
+    updateMonthlyChart(type, data);
+    updateAvgMonthlyChart(type, data);
+    updateCumulativeChart(type, data);
 }
 
-function createYearlyChart(energyType, data) {
-    console.log(`Creating yearly chart for ${energyType}`);
+// Yearly Chart Update
+function updateYearlyChart(type, data) {
     const yearlyData = processYearlyData(data);
-    const config = {
-        type: 'bar',
-        data: {
-            labels: yearlyData.labels,
-            datasets: [{
-                label: 'Jährlicher Verbrauch',
-                data: yearlyData.values,
-                backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Verbrauch'
-                    }
-                }
-            },
-            plugins: {
-                title: {
-                    display: true,
-                    text: `Jährlicher ${energyType.charAt(0).toUpperCase() + energyType.slice(1)}-Verbrauch`
-                }
-            }
-        }
-    };
-    createChart(`${energyType}-yearly-chart`, config);
+    const config = createChartConfig('bar', {
+        labels: yearlyData.labels,
+        datasets: [{
+            label: `Jährlicher ${CONFIG[type].label}`,
+            data: yearlyData.values,
+            backgroundColor: CONFIG[type].color,
+            borderColor: CONFIG[type].borderColor,
+            borderWidth: 1
+        }]
+    }, {
+        yAxisLabel: CONFIG[type].unit
+    });
+
+    updateChart(`${type}-yearly-chart`, config);
 }
 
-function createMonthlyChart(energyType, data) {
-    console.log(`Creating monthly chart for ${energyType}`);
+// Monthly Chart Update
+function updateMonthlyChart(type, data) {
     const monthlyData = processMonthlyData(data);
-    const config = {
-        type: 'line',
-        data: {
-            labels: monthlyData.labels,
-            datasets: monthlyData.datasets
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Verbrauch'
-                    }
-                }
-            },
-            plugins: {
-                title: {
-                    display: true,
-                    text: `Monatlicher ${energyType.charAt(0).toUpperCase() + energyType.slice(1)}-Verbrauch (Letzte 3 Jahre)`
-                }
-            }
-        }
-    };
-    createChart(`${energyType}-monthly-chart`, config);
+    const config = createChartConfig('line', {
+        labels: monthlyData.labels,
+        datasets: monthlyData.datasets.map(dataset => ({
+            ...dataset,
+            borderColor: CONFIG[type].borderColor,
+            backgroundColor: CONFIG[type].color
+        }))
+    }, {
+        yAxisLabel: CONFIG[type].unit
+    });
+
+    updateChart(`${type}-monthly-chart`, config);
 }
 
-function createAvgMonthlyChart(energyType, data) {
-    console.log(`Creating average monthly chart for ${energyType}`);
-    const avgMonthlyData = processAvgMonthlyData(data);
-    const config = {
-        type: 'bar',
-        data: {
-            labels: avgMonthlyData.labels,
-            datasets: [{
-                label: 'Durchschnittlicher Verbrauch',
-                data: avgMonthlyData.values,
-                backgroundColor: 'rgba(153, 102, 255, 0.6)',
-                borderColor: 'rgba(153, 102, 255, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Durchschnittlicher Verbrauch'
-                    }
-                }
-            },
-            plugins: {
-                title: {
-                    display: true,
-                    text: `Durchschnittlicher monatlicher ${energyType.charAt(0).toUpperCase() + energyType.slice(1)}-Verbrauch`
-                }
-            }
-        }
-    };
-    createChart(`${energyType}-avg-monthly-chart`, config);
+// Average Monthly Chart Update
+function updateAvgMonthlyChart(type, data) {
+    const avgData = processAvgMonthlyData(data);
+    const config = createChartConfig('bar', {
+        labels: avgData.labels,
+        datasets: [{
+            label: `Durchschnittlicher ${CONFIG[type].label}`,
+            data: avgData.values,
+            backgroundColor: CONFIG[type].color,
+            borderColor: CONFIG[type].borderColor,
+            borderWidth: 1
+        }]
+    }, {
+        yAxisLabel: CONFIG[type].unit
+    });
+
+    updateChart(`${type}-avg-monthly-chart`, config);
 }
 
-function createCumulativeChart(energyType, data) {
-    console.log(`Creating cumulative chart for ${energyType}`);
+// Cumulative Chart Update
+function updateCumulativeChart(type, data) {
     const cumulativeData = processCumulativeData(data);
-    const config = {
-        type: 'line',
-        data: {
-            labels: cumulativeData.labels,
-            datasets: [{
-                label: 'Kumulativer Verbrauch',
-                data: cumulativeData.values,
-                fill: false,
-                borderColor: 'rgb(75, 192, 192)',
-                tension: 0.1
-            }]
-        },
+    const config = createChartConfig('line', {
+        labels: cumulativeData.labels,
+        datasets: [{
+            label: `Kumulativer ${CONFIG[type].label}`,
+            data: cumulativeData.values,
+            borderColor: CONFIG[type].borderColor,
+            backgroundColor: CONFIG[type].color,
+            fill: false
+        }]
+    }, {
+        yAxisLabel: CONFIG[type].unit
+    });
+
+    updateChart(`${type}-cumulative-chart`, config);
+}
+
+// Hilfsfunktion zum Erstellen der Chart-Konfiguration
+function createChartConfig(type, data, options = {}) {
+    return {
+        type,
+        data,
         options: {
             responsive: true,
+            maintainAspectRatio: true,
             scales: {
                 y: {
                     beginAtZero: true,
                     title: {
                         display: true,
-                        text: 'Kumulativer Verbrauch'
+                        text: options.yAxisLabel || ''
                     }
                 }
             },
             plugins: {
-                title: {
-                    display: true,
-                    text: `Kumulativer ${energyType.charAt(0).toUpperCase() + energyType.slice(1)}-Verbrauch`
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                },
+                legend: {
+                    position: 'top'
                 }
             }
         }
     };
-    createChart(`${energyType}-cumulative-chart`, config);
 }
 
-// Helper functions to process data
+// Chart Update Logik
+function updateChart(chartId, config) {
+    const canvas = document.getElementById(chartId);
+    if (!canvas) {
+        console.error(`Canvas ${chartId} nicht gefunden`);
+        return;
+    }
+
+    if (charts.has(chartId)) {
+        charts.get(chartId).destroy();
+    }
+
+    const ctx = canvas.getContext('2d');
+    charts.set(chartId, new Chart(ctx, config));
+}
+
+// Datenverarbeitungsfunktionen
 function processYearlyData(data) {
     const yearlyData = {};
     data.labels.forEach((date, index) => {
         const year = date.split('-')[0];
-        if (!yearlyData[year]) {
-            yearlyData[year] = 0;
-        }
-        yearlyData[year] += data.values[index];
+        yearlyData[year] = (yearlyData[year] || 0) + (data.values[index] || 0);
     });
 
     const sortedYears = Object.keys(yearlyData).sort();
@@ -244,86 +259,82 @@ function processYearlyData(data) {
 }
 
 function processMonthlyData(data) {
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthNames = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
     const currentYear = new Date().getFullYear();
-    const startYear = currentYear - 2;  // Last 3 years
+    const startYear = currentYear - 2; // Jetzt 3 Jahre
+    
+    // Feste Farben pro Jahr - jeweils unterschiedlich
+    const yearColors = {
+        [currentYear]: 'rgb(75, 192, 192)',      // Türkis
+        [currentYear - 1]: 'rgb(255, 99, 132)',  // Rot
+        [currentYear - 2]: 'rgb(54, 162, 235)'   // Blau
+
+    };
     
     const monthlyData = {};
     data.labels.forEach((date, index) => {
         const [year, month] = date.split('-').map(Number);
         if (year >= startYear) {
-            if (!monthlyData[year]) {
-                monthlyData[year] = Array(12).fill(0);
-            }
-            monthlyData[year][month - 1] += data.values[index];
+            monthlyData[year] = monthlyData[year] || Array(12).fill(0);
+            monthlyData[year][month - 1] += data.values[index] || 0;
         }
     });
 
-    const datasets = Object.keys(monthlyData).map(year => ({
-        label: year,
-        data: monthlyData[year],
-        fill: false,
-        borderColor: `rgba(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255},1)`,
-        tension: 0.1
-    }));
-
     return {
         labels: monthNames,
-        datasets: datasets
+        datasets: Object.entries(monthlyData)
+            .sort(([yearA], [yearB]) => yearB - yearA) // Neueste Jahre zuerst
+            .map(([year, values]) => ({
+                label: year.toString(),
+                data: values,
+                fill: false,
+                borderColor: yearColors[year],
+                backgroundColor: yearColors[year],
+                tension: 0.1
+            }))
     };
 }
 
 function processAvgMonthlyData(data) {
     const monthlySum = Array(12).fill(0);
     const monthlyCount = Array(12).fill(0);
+    const monthNames = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
     data.labels.forEach((date, index) => {
         const month = parseInt(date.split('-')[1]) - 1;
-        monthlySum[month] += data.values[index];
-        monthlyCount[month]++;
+        if (!isNaN(data.values[index])) {
+            monthlySum[month] += data.values[index];
+            monthlyCount[month]++;
+        }
     });
 
-    const avgMonthlyValues = monthlySum.map((sum, index) => 
-        monthlyCount[index] > 0 ? sum / monthlyCount[index] : 0
-    );
-
     return {
-        labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        values: avgMonthlyValues
+        labels: monthNames,
+        values: monthlySum.map((sum, index) => 
+            monthlyCount[index] > 0 ? sum / monthlyCount[index] : 0
+        )
     };
 }
 
 function processCumulativeData(data) {
     let cumulative = 0;
-    const cumulativeValues = data.values.map(value => cumulative += value);
+    const values = [];
+    
+    data.labels.forEach((_, index) => {
+        if (!isNaN(data.values[index])) {
+            cumulative += data.values[index];
+        }
+        values.push(cumulative);
+    });
 
     return {
         labels: data.labels,
-        values: cumulativeValues
+        values
     };
 }
 
-// TODO: Implement functions to update charts based on user selections
-function updateTimeRange(chartType, startDate, endDate) {
-    // Implementation for updating time range
+// Fehlermeldung anzeigen
+function showError(message) {
+    // Hier könnte eine Funktion zur Anzeige von Fehlermeldungen implementiert werden
+    console.error(message);
 }
-
-function updateYearlyChart(startYear, endYear) {
-    // Implementation for updating yearly chart
-}
-
-function updateMonthlyChart(year, startMonth, endMonth) {
-    // Implementation for updating monthly chart
-}
-
-// TODO: Setup UI controls for time range selection
-function setupTimeRangeControls() {
-    // Implementation for setting up time range controls
-}
-
-// Export functions for potential use in other scripts
-window.energyCharts = {
-    updateTimeRange,
-    updateYearlyChart,
-    updateMonthlyChart
-};
