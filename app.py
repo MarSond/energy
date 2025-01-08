@@ -107,7 +107,7 @@ def api_data(energy_type):
         return jsonify({'error': 'Ungültiger Energietyp'}), 400
     
     try:
-        df = util.get_data()
+        df = util.get_data(apply_corrections=True)
         if energy_type not in df.columns:
             return jsonify({'error': 'Daten nicht verfügbar'}), 404
         
